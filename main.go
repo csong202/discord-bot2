@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"discord_bots/bot2/config"
+	"discord_bots/bot2/minigames"
 	"discord_bots/bot2/utils"
 
 	"github.com/bwmarrin/discordgo"
@@ -19,6 +20,7 @@ var (
 	BOT_PREFIX = "~"
 	searchParams map[string]string
 	pinPatterns = make([]string, 0, 20)
+	tictactoeGames = make(map[string]chan bool)
 )
 
 func main() {
@@ -42,8 +44,8 @@ func main() {
 	session.AddHandler(func (s *discordgo.Session, r *discordgo.Ready) {
 		fmt.Println("Bot is ready")
 	})
-
 	session.AddHandler(messageHandler)
+	session.AddHandler(reactionHandler)
 
 	session.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsAllWithoutPrivileged)
 
@@ -122,12 +124,27 @@ func messageHandler(s *discordgo.Session, msg *discordgo.MessageCreate) {
 				s.ChannelMessageSendReply(msg.ChannelID, "invalid argument! must be add or remove", msg.Reference())
 				return
 			}
+
+		} else if (strings.Contains(msg.Content, BOT_PREFIX + "tictactoe")) {
+			s.ChannelMessageSend(msg.ChannelID, "Welcome to TicTacToe! You are X and the computer is O")
+			reacted := make(chan bool)
+			tictactoeGames[msg.Author.ID] = reacted
+			go minigames.PlayTicTacToe(s, msg.ChannelID, msg.Author, reacted)
 		} else {
 			s.ChannelMessageSendReply(msg.ChannelID, "not a valid command", msg.Reference())
 			// TODO: show help page
 		} 
+
 	} else if checkMsgMatchPinPatterns(msg.Content) {
 		s.ChannelMessagePin(msg.ChannelID, msg.ID)
+	}
+}
+
+func reactionHandler(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
+	if (utils.ContainsStr(utils.GetMapKeys(tictactoeGames), r.Member.User.ID) && 
+		utils.ContainsStr(minigames.GridPlaces, r.Emoji.MessageFormat())) {
+		minigames.HandlePlayerTurn(&r.Emoji, r.Member.User)
+		tictactoeGames[r.Member.User.ID] <- true
 	}
 }
 

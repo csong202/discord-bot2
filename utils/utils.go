@@ -58,3 +58,22 @@ func RemoveStr(slice *[]string, value string) error {
 
 	return nil
 }
+
+func IndexStr(slice []string, value string) int {
+	for i, elem := range slice {
+		if (elem == value) {
+			return i
+		}
+	}
+	return -1
+}
+
+func GetMapKeys(myMap map[string]chan bool) (keys []string) {
+	keys = make([]string, len(myMap));
+	i := 0
+	for key := range myMap {
+		keys[i] = key
+		i++
+	}
+	return
+}

@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 
 	"discord_bots/bot2/utils"
-	// "../utils"
 )
 
 var (
