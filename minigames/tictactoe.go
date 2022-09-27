@@ -97,12 +97,12 @@ func HandlePlayerTurn(emoji *discordgo.Emoji, user *discordgo.User) {
 }
 
 func computerTurn(userID string) {
-	fmt.Println("computer turn")
 	availRows, _ := findAvailSpaces(boards[userID])
 	scoreMultiplier := len(availRows)
 	_, rowIdx, colIdx := miniMaxMove(boards[userID], O, scoreMultiplier)
 	if (rowIdx > -1 && colIdx > -1) {
 		boards[userID][rowIdx][colIdx] = "O"
+		fmt.Println("Bot turn, bot chose " + GridPlaces[getIdxFromBoardPos(rowIdx, colIdx)])
 	}
 }
 
@@ -110,12 +110,12 @@ func miniMaxMove(board [][]string, playerSymb string, scoreMultiplier int) (best
 	winner := checkWin(board)
 	var terminalScore int
 	if (winner != NO_WIN) {
-		if (winner == X) {
-			terminalScore = -1
-		} else if (winner == O) {
-			terminalScore = 1
-		} else if (winner == DRAW) {
+		if (winner == DRAW) {
 			terminalScore = 0
+		} else if (winner == playerSymb) {
+			terminalScore = 1
+		} else if (winner != playerSymb) {
+			terminalScore = -1
 		}
 		return terminalScore * scoreMultiplier, -1, -1
 	}
@@ -138,7 +138,7 @@ func miniMaxMove(board [][]string, playerSymb string, scoreMultiplier int) (best
 		} else if (playerSymb == O) {
 			nextPlayerSymb = X
 		}
-		currScore, _, _ := miniMaxMove(newBoard, nextPlayerSymb, (scoreMultiplier - 1))
+		currScore, _, _ := miniMaxMove(newBoard, nextPlayerSymb, len(availRows))
 		if (playerSymb == X && currScore < bestScore) {
 			bestScore = currScore
 			bestScoreRow = availRows[i]
@@ -168,6 +168,10 @@ func getBoardPosFromIdx(idx int) (row int, col int) {
 	row = int(math.Floor(float64(idx) / 3))
 	col = idx - row * 3
 	return
+}
+
+func getIdxFromBoardPos(row int, col int) int {
+	return 3 * row + col
 }
 
 func getBoard(userID string) (output string) {
