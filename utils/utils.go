@@ -77,3 +77,14 @@ func GetMapKeys(myMap map[string]chan bool) (keys []string) {
 	}
 	return
 }
+
+func Copy2DSliceStr(matrix [][]string) [][]string {
+	copy := make([][]string, len(matrix))
+	for i, row := range matrix {
+		copy[i] = make([]string, len(matrix[i]))
+		for j, item := range row {
+			copy[i][j] = item
+		}
+	}
+	return copy
+}

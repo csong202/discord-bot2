@@ -24,6 +24,7 @@ var (
 )
 
 func main() {
+	fmt.Println("running . . .")
 	err := config.ReadConfig()
 	utils.HandleError(err)
 

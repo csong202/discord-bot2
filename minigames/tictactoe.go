@@ -20,7 +20,8 @@ var (
 )
 
 const COMPUTER string = "Computer"
-const DRAW string = "Draw"
+const DRAW string = "GAME_DRAW"
+const NO_WIN string = "NO_WIN"
 
 const EMPTY string = "   "
 const ONE string = "1️⃣"
@@ -33,8 +34,10 @@ const SEVEN string = "7️⃣"
 const EIGHT string = "8️⃣"
 const NINE string = "9️⃣"
 
-const X string = "❌"
-const O string = "⭕"
+const X string = "X"
+const O string = "O"
+const X_BOLD string = "**X**"
+const O_BOLD string = "**O**"
 
 func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User, reacted chan bool) {
 	boards[user.ID] = [][]string{[]string {EMPTY, EMPTY, EMPTY}, []string {EMPTY, EMPTY, EMPTY}, []string {EMPTY, EMPTY, EMPTY}}
@@ -53,19 +56,19 @@ func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User, reac
 			playerTurn()
 			<- reacted
 		} else {
-			computerTurn()
+			computerTurn(user)
 		}
 		
-		winner = checkWin(user)
-		if (winner == userName || winner == COMPUTER || winner == DRAW) {
+		winner = checkWin(boards[user.ID])
+		if (winner != NO_WIN) {
 			break
 		}
 		turnCount++
 	}
 	
-	if (winner == userName) {
+	if (winner == X) {
 		session.ChannelMessageSend(channelID, fmt.Sprintf("Congratulations %s! You beat the computer 🥳", userName))
-	} else if (winner == COMPUTER) {
+	} else if (winner == O) {
 		session.ChannelMessageSend(channelID, "You lost 😢")
 	} else if (winner == DRAW) {
 		session.ChannelMessageSend(channelID, "No winner 😐")
@@ -76,26 +79,95 @@ func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User, reac
 
 func playerTurn() {
 	msg, _ := session.ChannelMessageSend(channelID, "Choose a spot:\n" + 
-		"1 | 2 | 3\n---------\n4 | 5 | 6\n---------\n7 | 8 | 9")
+		"1 | 2 | 3\n---------\n4 | 5 | 6\n---------\n7 | 8 | 9\n")
 
 	for _, emoji := range GridPlaces {
 		session.MessageReactionAdd(channelID, msg.Reference().MessageID, emoji)
 	}
 }
 
-func computerTurn() {
-	//https://www.freecodecamp.org/news/how-to-make-your-tic-tac-toe-game-unbeatable-by-using-the-minimax-algorithm-9d690bad4b37/
-	fmt.Println("computer turn")
-}
-
 func HandlePlayerTurn(emoji *discordgo.Emoji, user *discordgo.User) {
 	fmt.Printf("%s chose %s\n", user.Username, emoji.Name)
 
 	idx := utils.IndexStr(GridPlaces, emoji.MessageFormat())
-	rowIdx := int(math.Floor(float64(idx) / 3))
-	boards[user.ID][rowIdx][idx - rowIdx * 3] = "X"
+	rowIdx, colIdx := getBoardPosFromIdx(idx)
+	boards[user.ID][rowIdx][colIdx] = "X"
 
 	session.ChannelMessageSend(channelID, getBoard(user.ID))
+}
+
+func computerTurn(user *discordgo.User) {
+	fmt.Println("computer turn")
+	availRows, _ := findAvailSpaces(boards[user.ID])
+	scoreMultiplier := len(availRows)
+	_, rowIdx, colIdx := miniMaxRecursive(boards[user.ID], O, scoreMultiplier)
+	if (rowIdx > -1 && colIdx > -1) {
+		boards[user.ID][rowIdx][colIdx] = "O"
+	}
+}
+
+func miniMaxRecursive(board [][]string, playerSymb string, scoreMultiplier int) (bestScore int, bestScoreRow int, bestScoreCol int) {
+	winner := checkWin(board)
+	var terminalScore int
+	if (winner != NO_WIN) {
+		if (winner == X) {
+			terminalScore = -1
+		} else if (winner == O) {
+			terminalScore = 1
+		} else if (winner == DRAW) {
+			terminalScore = 0
+		}
+		return terminalScore * scoreMultiplier, -1, -1
+	}
+
+	bestScoreRow = -1
+	bestScoreCol = -1
+	if (playerSymb == X) {
+		bestScore = math.MaxInt
+	} else if (playerSymb == O) {
+		bestScore = math.MinInt
+	}
+	
+	availRows, availCols := findAvailSpaces(board)
+	for i := range availRows {
+		newBoard := utils.Copy2DSliceStr(board)
+		newBoard[availRows[i]][availCols[i]] = playerSymb
+		var nextPlayerSymb string
+		if (playerSymb == X) {
+			nextPlayerSymb = O
+		} else if (playerSymb == O) {
+			nextPlayerSymb = X
+		}
+		currScore, _, _ := miniMaxRecursive(newBoard, nextPlayerSymb, (scoreMultiplier - 1))
+		if (playerSymb == X && currScore < bestScore) {
+			bestScore = currScore
+			bestScoreRow = availRows[i]
+			bestScoreCol = availCols[i]
+		} else if (playerSymb == O && currScore > bestScore) {
+			bestScore = currScore
+			bestScoreRow = availRows[i]
+			bestScoreCol = availCols[i]
+		}
+	}
+	return 
+}
+
+func findAvailSpaces(board [][]string) (rows []int, cols []int){
+	for i, row := range board {
+		for j, item := range row {
+			if (item == EMPTY) {
+				rows = append(rows, i)
+				cols = append(cols, j)
+			}
+		}
+	}
+	return
+}
+
+func getBoardPosFromIdx(idx int) (row int, col int) {
+	row = int(math.Floor(float64(idx) / 3))
+	col = idx - row * 3
+	return
 }
 
 func getBoard(userID string) (output string) {
@@ -113,11 +185,7 @@ func getBoard(userID string) (output string) {
 	return
 }
 
-func checkWin(user *discordgo.User) (winner string) {
-	userName := user.Username
-	userID := user.ID
-	board := boards[userID]
-
+func checkWin(board [][]string) (winner string) {
 	rowSame := false
 	colSame := false
 	diagPosSame := false
@@ -127,19 +195,19 @@ func checkWin(user *discordgo.User) (winner string) {
 			if (j < len(row) - 1) {
 				rowSame = row[j] != EMPTY && row[j] == row[j + 1]
 			}
-			if (i < len(row) - 1) {
+			if (i < len(board) - 1) {
 				colSame = board[i][j] != EMPTY && board[i][j] == board[i + 1][j]
 				if (colSame && i == len(row) - 2) {
 					if (board[i][j] == "X") {
-						winner = userName
+						winner = X
 						for k := 0; k < len(board); k ++ {
-							board[k][j] = X
+							board[k][j] = X_BOLD
 						}
 						break
 					} else if (board[i][j] == "O") {
-						winner = COMPUTER
+						winner = O
 						for k := 0; k < len(board); k++ {
-							board[k][j] = O
+							board[k][j] = O_BOLD
 						}
 						break
 					}
@@ -149,22 +217,20 @@ func checkWin(user *discordgo.User) (winner string) {
 				diagPosSame = board[i][j] != EMPTY && board[i][j] == board[i + 1][j + 1]
 			}
 			if (i == len(board) - j - 1 && j > 0) {
-				diagPosSame = board[i][j] != EMPTY && board[i][j] == board[i + 1][j - 1]
+				diagNegSame = board[i][j] != EMPTY && board[i][j] == board[i + 1][j - 1]
 			}
-			// fmt.Printf("i = %d, j = %d, rowSame: %t, colSame: %t, diagPosSame: %t, diagNegSame: %t\n", 
-			// 	i, j, rowSame, colSame, diagPosSame, diagNegSame)
 		}
 		if (rowSame) {
 			if (board[i][0] == "X") {
-				winner = userName
+				winner = X
 				for j := 0; j < len(row); j++ {
-					board[i][j] = X
+					board[i][j] = X_BOLD
 				}
 				break
 			} else if (board[i][0] == "O") {
-				winner = COMPUTER
+				winner = O
 				for j := 0; j < len(row); j++ {
-					board[i][j] = O
+					board[i][j] = O_BOLD
 				}
 				break
 			}
@@ -173,27 +239,27 @@ func checkWin(user *discordgo.User) (winner string) {
 
 	if (diagPosSame) {
 		if (board[0][0] == "X") {
-			winner = userName
+			winner = X
 			for i := 0; i < len(board); i ++ {
-				board[i][i] = X
+				board[i][i] = X_BOLD
 			}
 		} else if (board[0][0] == "O") {
-			winner = COMPUTER
+			winner = O
 			for i := 0; i < len(board); i ++ {
-				board[i][i] = O
+				board[i][i] = O_BOLD
 			}
 		}
 	}
 	if (diagNegSame) {
 		if (board[0][2] == "X") {
-			winner = userName
+			winner = X
 			for i := 0; i < len(board); i++ {
-				board[i][len(board) - i - 1] = X
+				board[i][len(board) - i - 1] = X_BOLD
 			}
 		} else if (board[0][2] == "O") {
-			winner = COMPUTER
+			winner = O
 			for i := 0; i < len(board); i++ {
-				board[i][len(board) - i - 1] = O
+				board[i][len(board) - i - 1] = O_BOLD
 			}
 		}
 	}
@@ -204,7 +270,11 @@ func checkWin(user *discordgo.User) (winner string) {
 			boardFull = boardFull && board[i][j] != EMPTY
 		}
 	}
-	if (boardFull) { winner = DRAW }
+	if (boardFull) { 
+		winner = DRAW 
+	} else {
+		winner = NO_WIN
+	}
 	
 	done = true
 	return
