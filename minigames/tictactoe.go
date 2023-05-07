@@ -3,6 +3,7 @@ package minigames
 import (
 	"fmt"
 	"math"
+	"math/rand"
 
 	"bot2/utils"
 
@@ -12,10 +13,11 @@ import (
 var (
 	boards = make(map[string][][]string)
 
-	session           *discordgo.Session = nil
-	channelID         string
-	GridPlaces        = make([]string, 9)
-	gridPlacesUnicode = make([]string, 9)
+	session       *discordgo.Session = nil
+	channelID     string
+	GridPlaces    = make([]string, 9)
+	boldedSymbols = make(map[string]string)
+	randomPlays   = false
 )
 
 const COMPUTER string = "Computer"
@@ -44,6 +46,8 @@ func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User, reac
 	channelID = chID
 
 	GridPlaces = []string{ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE}
+	boldedSymbols[X] = X_BOLD
+	boldedSymbols[O] = O_BOLD
 
 	userName := user.Username
 
@@ -58,9 +62,10 @@ func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User, reac
 			computerTurn(user.ID)
 		}
 
+		fmt.Println(getBoard(user.ID))
 		winner = checkWin(boards[user.ID])
-		fmt.Println("Winner is: " + winner)
 		if winner != NO_WIN {
+			fmt.Println("Winner is: " + winner)
 			break
 		}
 		turnCount++
@@ -97,11 +102,24 @@ func HandlePlayerTurn(emoji *discordgo.Emoji, user *discordgo.User) {
 }
 
 func computerTurn(userID string) {
-	availRows, _ := findAvailSpaces(boards[userID])
-	scoreMultiplier := len(availRows)
-	_, rowIdx, colIdx := miniMaxMove(boards[userID], O, scoreMultiplier)
+	availRows, availCols := findAvailSpaces(boards[userID])
+	var (
+		scoreMultiplier int
+		rowIdx          int
+		colIdx          int
+	)
+
+	if randomPlays {
+		availIdx := rand.Intn(len(availRows))
+		rowIdx = availRows[availIdx]
+		colIdx = availCols[availIdx]
+	} else {
+		scoreMultiplier = 9 - len(availRows)
+		_, rowIdx, colIdx = miniMaxMove(utils.Copy2DSliceStr(boards[userID]), O, scoreMultiplier)
+	}
+
 	if rowIdx > -1 && colIdx > -1 {
-		boards[userID][rowIdx][colIdx] = "O"
+		boards[userID][rowIdx][colIdx] = O
 		fmt.Println("Bot turn, bot chose " + GridPlaces[getIdxFromBoardPos(rowIdx, colIdx)])
 	}
 }
@@ -112,9 +130,9 @@ func miniMaxMove(board [][]string, playerSymb string, scoreMultiplier int) (best
 	if winner != NO_WIN {
 		if winner == DRAW {
 			terminalScore = 0
-		} else if winner == playerSymb {
+		} else if winner == O {
 			terminalScore = 1
-		} else if winner != playerSymb {
+		} else if winner != X {
 			terminalScore = -1
 		}
 		return terminalScore * scoreMultiplier, -1, -1
@@ -138,7 +156,7 @@ func miniMaxMove(board [][]string, playerSymb string, scoreMultiplier int) (best
 		} else if playerSymb == O {
 			nextPlayerSymb = X
 		}
-		currScore, _, _ := miniMaxMove(newBoard, nextPlayerSymb, len(availRows))
+		currScore, _, _ := miniMaxMove(newBoard, nextPlayerSymb, 9-len(availRows))
 		if playerSymb == X && currScore < bestScore {
 			bestScore = currScore
 			bestScoreRow = availRows[i]
@@ -193,81 +211,60 @@ func getBoard(userID string) (output string) {
 
 func checkWin(board [][]string) (winner string) {
 	winner = NO_WIN
-	rowSame := false
-	colSame := false
-	diagPosSame := false
-	diagNegSame := false
+	rowSame := true
+	colSame := true
+	diagPosSame := true
+	diagNegSame := true
+
 	for i, row := range board {
+		rowSame = true
 		for j := range row {
+			if i == 0 {
+				colSame = true
+			}
 			if j < len(row)-1 {
-				rowSame = row[j] != EMPTY && row[j] == row[j+1]
+				rowSame = rowSame && row[j] != EMPTY && row[j] == row[j+1]
 			}
 			if i < len(board)-1 {
-				colSame = board[i][j] != EMPTY && board[i][j] == board[i+1][j]
-				if colSame && i == len(row)-2 {
-					if board[i][j] == X {
-						winner = X
-						for k := 0; k < len(board); k++ {
-							board[k][j] = X_BOLD
-						}
-						break
-					} else if board[i][j] == O {
-						winner = O
-						for k := 0; k < len(board); k++ {
-							board[k][j] = O_BOLD
-						}
-						break
+				colSame = colSame && board[i][j] != EMPTY && board[i][j] == board[i+1][j]
+				if colSame && i == len(board)-2 {
+					winner = board[i][j]
+					for k := 0; k < len(board); k++ {
+						board[k][j] = boldedSymbols[winner]
 					}
+					break
 				}
 			}
 			if i == j && i < len(board)-1 {
-				diagPosSame = board[i][j] != EMPTY && board[i][j] == board[i+1][j+1]
+				diagPosSame = diagPosSame && board[i][j] != EMPTY && board[i][j] == board[i+1][j+1]
 			}
 			if i == len(board)-j-1 && j > 0 {
-				diagNegSame = board[i][j] != EMPTY && board[i][j] == board[i+1][j-1]
+				diagNegSame = diagNegSame && board[i][j] != EMPTY && board[i][j] == board[i+1][j-1]
 			}
+
+			// fmt.Printf("i = %d, j = %d, board[i][j] = %s\n", i, j, board[i][j])
+			// fmt.Printf("rowSame = %t, colSame = %t, diagPosSame = %t, diagNegSame = %t, winningRowOrCol = %d\n",
+			// 	rowSame, colSame, diagPosSame, diagNegSame, winningRowOrCol)
 		}
 		if rowSame {
-			if board[i][0] == X {
-				winner = X
-				for j := 0; j < len(row); j++ {
-					board[i][j] = X_BOLD
-				}
-				break
-			} else if board[i][0] == O {
-				winner = O
-				for j := 0; j < len(row); j++ {
-					board[i][j] = O_BOLD
-				}
-				break
+			winner = board[i][0]
+			for j := 0; j < len(row); j++ {
+				board[i][j] = boldedSymbols[winner]
 			}
+			break
 		}
 	}
 
 	if diagPosSame {
-		if board[0][0] == X {
-			winner = X
-			for i := 0; i < len(board); i++ {
-				board[i][i] = X_BOLD
-			}
-		} else if board[0][0] == O {
-			winner = O
-			for i := 0; i < len(board); i++ {
-				board[i][i] = O_BOLD
-			}
+		winner = board[0][0]
+		for i := 0; i < len(board); i++ {
+			board[i][i] = boldedSymbols[winner]
 		}
 	}
 	if diagNegSame {
-		if board[0][2] == X {
-			winner = X
-			for i := 0; i < len(board); i++ {
-				board[i][len(board)-i-1] = X_BOLD
-			}
-		} else if board[0][2] == O {
-			winner = O
-			for i := 0; i < len(board); i++ {
-				board[i][len(board)-i-1] = O_BOLD
-			}
+		winner = board[0][len(board)-1]
+		for i := 0; i < len(board); i++ {
+			board[i][len(board)-i-1] = boldedSymbols[winner]
 		}
 	}
 
@@ -280,6 +277,9 @@ func checkWin(board [][]string) (winner string) {
 	if boardFull {
 		winner = DRAW
 	}
+
+	// fmt.Printf("rowSame = %t, colSame = %t, diagPosSame = %t, diagNegSame = %t, winningRowOrCol = %d\n",
+	// 	rowSame, colSame, diagPosSame, diagNegSame, winningRowOrCol)
 
 	return
 }
