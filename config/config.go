@@ -1,16 +1,15 @@
 package config
 
 import (
+	"bot2/utils"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-
-	"discord_bots/bot2/utils"
 )
 
 var (
 	BotToken string
-	config *configStruct
+	config   *configStruct
 )
 
 type configStruct struct {
@@ -19,7 +18,8 @@ type configStruct struct {
 
 func ReadConfig() error {
 	fmt.Println("Reading config file...")
-	file, err := ioutil.ReadFile("./config.json")
+
+	file, err := ioutil.ReadFile("config/config.json")
 	utils.HandleError(err)
 
 	fmt.Println(string(file))
@@ -29,4 +29,3 @@ func ReadConfig() error {
 	BotToken = config.BotToken
 	return nil
 }
-

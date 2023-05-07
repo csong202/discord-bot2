@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"math"
 
-	"discord_bots/bot2/utils"
+	"bot2/utils"
 
 	"github.com/bwmarrin/discordgo"
 )
 
 var (
 	boards = make(map[string][][]string)
-	
-	session *discordgo.Session = nil
-	channelID string
-	GridPlaces = make([]string, 9)
+
+	session           *discordgo.Session = nil
+	channelID         string
+	GridPlaces        = make([]string, 9)
 	gridPlacesUnicode = make([]string, 9)
 )
 
@@ -39,7 +39,7 @@ const X_BOLD string = "**X**"
 const O_BOLD string = "**O**"
 
 func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User, reacted chan bool) {
-	boards[user.ID] = [][]string{[]string {EMPTY, EMPTY, EMPTY}, []string {EMPTY, EMPTY, EMPTY}, []string {EMPTY, EMPTY, EMPTY}}
+	boards[user.ID] = [][]string{[]string{EMPTY, EMPTY, EMPTY}, []string{EMPTY, EMPTY, EMPTY}, []string{EMPTY, EMPTY, EMPTY}}
 	session = s
 	channelID = chID
 
@@ -50,27 +50,27 @@ func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User, reac
 	var winner string
 	turnCount := 0
 	for turnCount < 9 {
-		if (turnCount % 2 == 0) {
-			s.ChannelMessageSend(channelID, fmt.Sprintf("It's %s's turn\n" + getBoard(user.ID), userName))
+		if turnCount%2 == 0 {
+			s.ChannelMessageSend(channelID, fmt.Sprintf("It's %s's turn\n"+getBoard(user.ID), userName))
 			playerTurn()
-			<- reacted
+			<-reacted
 		} else {
 			computerTurn(user.ID)
 		}
-		
+
 		winner = checkWin(boards[user.ID])
 		fmt.Println("Winner is: " + winner)
-		if (winner != NO_WIN) {
+		if winner != NO_WIN {
 			break
 		}
 		turnCount++
 	}
-	
-	if (winner == X) {
+
+	if winner == X {
 		session.ChannelMessageSend(channelID, fmt.Sprintf("Congratulations %s! You beat the computer 🥳", userName))
-	} else if (winner == O) {
+	} else if winner == O {
 		session.ChannelMessageSend(channelID, "You lost 😢")
-	} else if (winner == DRAW) {
+	} else if winner == DRAW {
 		session.ChannelMessageSend(channelID, "No winner 😐")
 	}
 
@@ -78,7 +78,7 @@ func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User, reac
 }
 
 func playerTurn() {
-	msg, _ := session.ChannelMessageSend(channelID, "Choose a spot:\n" + 
+	msg, _ := session.ChannelMessageSend(channelID, "Choose a spot:\n"+
 		"1 | 2 | 3\n---------\n4 | 5 | 6\n---------\n7 | 8 | 9\n")
 
 	for _, emoji := range GridPlaces {
@@ -100,7 +100,7 @@ func computerTurn(userID string) {
 	availRows, _ := findAvailSpaces(boards[userID])
 	scoreMultiplier := len(availRows)
 	_, rowIdx, colIdx := miniMaxMove(boards[userID], O, scoreMultiplier)
-	if (rowIdx > -1 && colIdx > -1) {
+	if rowIdx > -1 && colIdx > -1 {
 		boards[userID][rowIdx][colIdx] = "O"
 		fmt.Println("Bot turn, bot chose " + GridPlaces[getIdxFromBoardPos(rowIdx, colIdx)])
 	}
@@ -109,12 +109,12 @@ func computerTurn(userID string) {
 func miniMaxMove(board [][]string, playerSymb string, scoreMultiplier int) (bestScore int, bestScoreRow int, bestScoreCol int) {
 	winner := checkWin(board)
 	var terminalScore int
-	if (winner != NO_WIN) {
-		if (winner == DRAW) {
+	if winner != NO_WIN {
+		if winner == DRAW {
 			terminalScore = 0
-		} else if (winner == playerSymb) {
+		} else if winner == playerSymb {
 			terminalScore = 1
-		} else if (winner != playerSymb) {
+		} else if winner != playerSymb {
 			terminalScore = -1
 		}
 		return terminalScore * scoreMultiplier, -1, -1
@@ -122,40 +122,40 @@ func miniMaxMove(board [][]string, playerSymb string, scoreMultiplier int) (best
 
 	bestScoreRow = -1
 	bestScoreCol = -1
-	if (playerSymb == X) {
+	if playerSymb == X {
 		bestScore = math.MaxInt
-	} else if (playerSymb == O) {
+	} else if playerSymb == O {
 		bestScore = math.MinInt
 	}
-	
+
 	availRows, availCols := findAvailSpaces(board)
 	for i := range availRows {
 		newBoard := utils.Copy2DSliceStr(board)
 		newBoard[availRows[i]][availCols[i]] = playerSymb
 		var nextPlayerSymb string
-		if (playerSymb == X) {
+		if playerSymb == X {
 			nextPlayerSymb = O
-		} else if (playerSymb == O) {
+		} else if playerSymb == O {
 			nextPlayerSymb = X
 		}
 		currScore, _, _ := miniMaxMove(newBoard, nextPlayerSymb, len(availRows))
-		if (playerSymb == X && currScore < bestScore) {
+		if playerSymb == X && currScore < bestScore {
 			bestScore = currScore
 			bestScoreRow = availRows[i]
 			bestScoreCol = availCols[i]
-		} else if (playerSymb == O && currScore > bestScore) {
+		} else if playerSymb == O && currScore > bestScore {
 			bestScore = currScore
 			bestScoreRow = availRows[i]
 			bestScoreCol = availCols[i]
 		}
 	}
-	return 
+	return
 }
 
-func findAvailSpaces(board [][]string) (rows []int, cols []int){
+func findAvailSpaces(board [][]string) (rows []int, cols []int) {
 	for i, row := range board {
 		for j, item := range row {
-			if (item == EMPTY) {
+			if item == EMPTY {
 				rows = append(rows, i)
 				cols = append(cols, j)
 			}
@@ -166,12 +166,12 @@ func findAvailSpaces(board [][]string) (rows []int, cols []int){
 
 func getBoardPosFromIdx(idx int) (row int, col int) {
 	row = int(math.Floor(float64(idx) / 3))
-	col = idx - row * 3
+	col = idx - row*3
 	return
 }
 
 func getIdxFromBoardPos(row int, col int) int {
-	return 3 * row + col
+	return 3*row + col
 }
 
 func getBoard(userID string) (output string) {
@@ -180,11 +180,13 @@ func getBoard(userID string) (output string) {
 	for i, row := range board {
 		for j, mark := range row {
 			output += mark
-			if (j < len(row) - 1) {
+			if j < len(row)-1 {
 				output += " | "
 			}
 		}
-		if (i < len(board) - 1) { output += "\n---------\n" }
+		if i < len(board)-1 {
+			output += "\n---------\n"
+		}
 	}
 	return
 }
@@ -197,19 +199,19 @@ func checkWin(board [][]string) (winner string) {
 	diagNegSame := false
 	for i, row := range board {
 		for j := range row {
-			if (j < len(row) - 1) {
-				rowSame = row[j] != EMPTY && row[j] == row[j + 1]
+			if j < len(row)-1 {
+				rowSame = row[j] != EMPTY && row[j] == row[j+1]
 			}
-			if (i < len(board) - 1) {
-				colSame = board[i][j] != EMPTY && board[i][j] == board[i + 1][j]
-				if (colSame && i == len(row) - 2) {
-					if (board[i][j] == X) {
+			if i < len(board)-1 {
+				colSame = board[i][j] != EMPTY && board[i][j] == board[i+1][j]
+				if colSame && i == len(row)-2 {
+					if board[i][j] == X {
 						winner = X
-						for k := 0; k < len(board); k ++ {
+						for k := 0; k < len(board); k++ {
 							board[k][j] = X_BOLD
 						}
 						break
-					} else if (board[i][j] == O) {
+					} else if board[i][j] == O {
 						winner = O
 						for k := 0; k < len(board); k++ {
 							board[k][j] = O_BOLD
@@ -218,21 +220,21 @@ func checkWin(board [][]string) (winner string) {
 					}
 				}
 			}
-			if (i == j && i < len(board) - 1) {
-				diagPosSame = board[i][j] != EMPTY && board[i][j] == board[i + 1][j + 1]
+			if i == j && i < len(board)-1 {
+				diagPosSame = board[i][j] != EMPTY && board[i][j] == board[i+1][j+1]
 			}
-			if (i == len(board) - j - 1 && j > 0) {
-				diagNegSame = board[i][j] != EMPTY && board[i][j] == board[i + 1][j - 1]
+			if i == len(board)-j-1 && j > 0 {
+				diagNegSame = board[i][j] != EMPTY && board[i][j] == board[i+1][j-1]
 			}
 		}
-		if (rowSame) {
-			if (board[i][0] == X) {
+		if rowSame {
+			if board[i][0] == X {
 				winner = X
 				for j := 0; j < len(row); j++ {
 					board[i][j] = X_BOLD
 				}
 				break
-			} else if (board[i][0] == O) {
+			} else if board[i][0] == O {
 				winner = O
 				for j := 0; j < len(row); j++ {
 					board[i][j] = O_BOLD
@@ -242,29 +244,29 @@ func checkWin(board [][]string) (winner string) {
 		}
 	}
 
-	if (diagPosSame) {
-		if (board[0][0] == X) {
+	if diagPosSame {
+		if board[0][0] == X {
 			winner = X
-			for i := 0; i < len(board); i ++ {
+			for i := 0; i < len(board); i++ {
 				board[i][i] = X_BOLD
 			}
-		} else if (board[0][0] == O) {
+		} else if board[0][0] == O {
 			winner = O
-			for i := 0; i < len(board); i ++ {
+			for i := 0; i < len(board); i++ {
 				board[i][i] = O_BOLD
 			}
 		}
 	}
-	if (diagNegSame) {
-		if (board[0][2] == X) {
+	if diagNegSame {
+		if board[0][2] == X {
 			winner = X
 			for i := 0; i < len(board); i++ {
-				board[i][len(board) - i - 1] = X_BOLD
+				board[i][len(board)-i-1] = X_BOLD
 			}
-		} else if (board[0][2] == O) {
+		} else if board[0][2] == O {
 			winner = O
 			for i := 0; i < len(board); i++ {
-				board[i][len(board) - i - 1] = O_BOLD
+				board[i][len(board)-i-1] = O_BOLD
 			}
 		}
 	}
@@ -275,8 +277,8 @@ func checkWin(board [][]string) (winner string) {
 			boardFull = boardFull && board[i][j] != EMPTY
 		}
 	}
-	if (boardFull) { 
-		winner = DRAW 
+	if boardFull {
+		winner = DRAW
 	}
 
 	return
