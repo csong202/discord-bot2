@@ -11,7 +11,8 @@ import (
 )
 
 var (
-	boards = make(map[string][][]string)
+	TicTacToeGames = make(map[string]chan bool)
+	boards         = make(map[string][][]string)
 
 	session       *discordgo.Session = nil
 	channelID     string
@@ -41,7 +42,7 @@ const X_BOLD string = "**X**"
 const O_BOLD string = "**O**"
 
 func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User, reacted chan bool) {
-	boards[user.ID] = [][]string{[]string{EMPTY, EMPTY, EMPTY}, []string{EMPTY, EMPTY, EMPTY}, []string{EMPTY, EMPTY, EMPTY}}
+	boards[user.ID] = [][]string{{EMPTY, EMPTY, EMPTY}, {EMPTY, EMPTY, EMPTY}, {EMPTY, EMPTY, EMPTY}}
 	session = s
 	channelID = chID
 
@@ -96,9 +97,15 @@ func HandlePlayerTurn(emoji *discordgo.Emoji, user *discordgo.User) {
 
 	idx := utils.IndexStr(GridPlaces, emoji.MessageFormat())
 	rowIdx, colIdx := getBoardPosFromIdx(idx)
-	boards[user.ID][rowIdx][colIdx] = X
 
-	session.ChannelMessageSend(channelID, getBoard(user.ID))
+	if boards[user.ID][rowIdx][colIdx] == EMPTY {
+		boards[user.ID][rowIdx][colIdx] = X
+		session.ChannelMessageSend(channelID, getBoard(user.ID))
+		TicTacToeGames[user.ID] <- true
+	} else {
+		session.ChannelMessageSend(channelID, "This spot is already taken. React again to choose another one")
+	}
+
 }
 
 func computerTurn(userID string) {
@@ -157,7 +164,7 @@ func miniMaxMove(board [][]string, playerSymb string, scoreMultiplier int) (best
 		} else if playerSymb == O {
 			nextPlayerSymb = X
 		}
-		currScore, _, _ := miniMaxMove(newBoard, nextPlayerSymb, len(availRows)-1)
+		currScore, _, _ := miniMaxMove(newBoard, nextPlayerSymb, len(availRows))
 		if playerSymb == X && currScore < bestScore {
 			bestScore = currScore
 			bestScoreRow = availRows[i]

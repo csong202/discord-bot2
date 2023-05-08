@@ -13,7 +13,7 @@ var (
 )
 
 type configStruct struct {
-	BotToken string `json : "BotToken"`
+	BotToken string `json:"BotToken"`
 }
 
 func ReadConfig() error {

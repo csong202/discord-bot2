@@ -16,11 +16,10 @@ import (
 )
 
 var (
-	BotToken       string
-	BOT_PREFIX     = "~"
-	searchParams   map[string]string
-	pinPatterns    = make([]string, 0, 20)
-	tictactoeGames = make(map[string]chan bool)
+	BotToken     string
+	BOT_PREFIX   = "~"
+	searchParams map[string]string
+	pinPatterns  = make([]string, 0, 20)
 )
 
 func main() {
@@ -129,7 +128,7 @@ func messageHandler(s *discordgo.Session, msg *discordgo.MessageCreate) {
 		} else if strings.Contains(msg.Content, BOT_PREFIX+"tictactoe") {
 			s.ChannelMessageSend(msg.ChannelID, "Welcome to TicTacToe! You are X and the computer is O")
 			reacted := make(chan bool)
-			tictactoeGames[msg.Author.ID] = reacted
+			minigames.TicTacToeGames[msg.Author.ID] = reacted
 			go minigames.PlayTicTacToe(s, msg.ChannelID, msg.Author, reacted)
 		} else {
 			s.ChannelMessageSendReply(msg.ChannelID, "not a valid command", msg.Reference())
@@ -142,10 +141,9 @@ func messageHandler(s *discordgo.Session, msg *discordgo.MessageCreate) {
 }
 
 func reactionHandler(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
-	if utils.ContainsStr(utils.GetMapKeys(tictactoeGames), r.Member.User.ID) &&
+	if utils.ContainsStr(utils.GetMapKeys(minigames.TicTacToeGames), r.Member.User.ID) &&
 		utils.ContainsStr(minigames.GridPlaces, r.Emoji.MessageFormat()) {
 		minigames.HandlePlayerTurn(&r.Emoji, r.Member.User)
-		tictactoeGames[r.Member.User.ID] <- true
 	}
 }
 
