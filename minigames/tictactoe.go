@@ -103,6 +103,7 @@ func HandlePlayerTurn(emoji *discordgo.Emoji, user *discordgo.User) {
 
 func computerTurn(userID string) {
 	availRows, availCols := findAvailSpaces(boards[userID])
+
 	var (
 		scoreMultiplier int
 		rowIdx          int
@@ -114,7 +115,7 @@ func computerTurn(userID string) {
 		rowIdx = availRows[availIdx]
 		colIdx = availCols[availIdx]
 	} else {
-		scoreMultiplier = 9 - len(availRows)
+		scoreMultiplier = len(availRows)
 		_, rowIdx, colIdx = miniMaxMove(utils.Copy2DSliceStr(boards[userID]), O, scoreMultiplier)
 	}
 
@@ -132,7 +133,7 @@ func miniMaxMove(board [][]string, playerSymb string, scoreMultiplier int) (best
 			terminalScore = 0
 		} else if winner == O {
 			terminalScore = 1
-		} else if winner != X {
+		} else if winner == X {
 			terminalScore = -1
 		}
 		return terminalScore * scoreMultiplier, -1, -1
@@ -156,7 +157,7 @@ func miniMaxMove(board [][]string, playerSymb string, scoreMultiplier int) (best
 		} else if playerSymb == O {
 			nextPlayerSymb = X
 		}
-		currScore, _, _ := miniMaxMove(newBoard, nextPlayerSymb, 9-len(availRows))
+		currScore, _, _ := miniMaxMove(newBoard, nextPlayerSymb, len(availRows)-1)
 		if playerSymb == X && currScore < bestScore {
 			bestScore = currScore
 			bestScoreRow = availRows[i]
@@ -219,32 +220,9 @@ func checkWin(board [][]string) (winner string) {
 	for i, row := range board {
 		rowSame = true
 		for j := range row {
-			if i == 0 {
-				colSame = true
-			}
 			if j < len(row)-1 {
 				rowSame = rowSame && row[j] != EMPTY && row[j] == row[j+1]
 			}
-			if i < len(board)-1 {
-				colSame = colSame && board[i][j] != EMPTY && board[i][j] == board[i+1][j]
-				if colSame && i == len(board)-2 {
-					winner = board[i][j]
-					for k := 0; k < len(board); k++ {
-						board[k][j] = boldedSymbols[winner]
-					}
-					break
-				}
-			}
-			if i == j && i < len(board)-1 {
-				diagPosSame = diagPosSame && board[i][j] != EMPTY && board[i][j] == board[i+1][j+1]
-			}
-			if i == len(board)-j-1 && j > 0 {
-				diagNegSame = diagNegSame && board[i][j] != EMPTY && board[i][j] == board[i+1][j-1]
-			}
-
-			// fmt.Printf("i = %d, j = %d, board[i][j] = %s\n", i, j, board[i][j])
-			// fmt.Printf("rowSame = %t, colSame = %t, diagPosSame = %t, diagNegSame = %t, winningRowOrCol = %d\n",
-			// 	rowSame, colSame, diagPosSame, diagNegSame, winningRowOrCol)
 		}
 		if rowSame {
 			winner = board[i][0]
@@ -252,6 +230,31 @@ func checkWin(board [][]string) (winner string) {
 				board[i][j] = boldedSymbols[winner]
 			}
 			break
+		}
+	}
+
+	for j := range board[0] {
+		colSame = true
+		for i := range board {
+			if i < len(board)-1 {
+				colSame = colSame && board[i][j] != EMPTY && board[i][j] == board[i+1][j]
+			}
+		}
+		if colSame {
+			winner = board[0][j]
+			for i := 0; i < len(board); i++ {
+				board[i][j] = boldedSymbols[winner]
+			}
+			break
+		}
+	}
+
+	for i := range board {
+		if i < len(board)-1 {
+			diagPosSame = diagPosSame && board[i][i] != EMPTY && board[i][i] == board[i+1][i+1]
+		}
+		if i > 0 {
+			diagNegSame = diagNegSame && board[i][len(board)-i-1] != EMPTY && board[i][len(board)-i-1] == board[i-1][len(board)-i]
 		}
 	}
 
@@ -268,18 +271,24 @@ func checkWin(board [][]string) (winner string) {
 		}
 	}
 
-	boardFull := true
-	for i := 0; i < len(board); i++ {
-		for j := 0; j < len(board[i]); j++ {
-			boardFull = boardFull && board[i][j] != EMPTY
+	if winner == NO_WIN {
+		boardFull := true
+	outer:
+		for i := 0; i < len(board); i++ {
+			for j := 0; j < len(board[i]); j++ {
+				boardFull = boardFull && board[i][j] != EMPTY
+				if !boardFull {
+					break outer
+				}
+			}
+		}
+		if boardFull {
+			winner = DRAW
 		}
 	}
-	if boardFull {
-		winner = DRAW
-	}
 
-	// fmt.Printf("rowSame = %t, colSame = %t, diagPosSame = %t, diagNegSame = %t, winningRowOrCol = %d\n",
-	// 	rowSame, colSame, diagPosSame, diagNegSame, winningRowOrCol)
+	// fmt.Printf("rowSame = %t, colSame = %t, diagPosSame = %t, diagNegSame = %t\n",
+	// 	rowSame, colSame, diagPosSame, diagNegSame)
 
 	return
 }
