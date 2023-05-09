@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bot2/minigamestypes"
 	"errors"
 	"fmt"
 )
@@ -16,21 +17,25 @@ func HandleError(err error) {
 
 func ContainsInt(slice []int, value int) bool {
 	for _, elem := range slice {
-		if (elem == value) { return true}
+		if elem == value {
+			return true
+		}
 	}
 	return false
 }
 
 func ContainsStr(slice []string, value string) bool {
 	for _, elem := range slice {
-		if (elem == value) { return true}
+		if elem == value {
+			return true
+		}
 	}
 	return false
 }
 
 func RemoveStr(slice *[]string, value string) error {
 	if !ContainsStr(*slice, value) {
-		return errors.New("Slice does not contain the value")
+		return errors.New("slice does not contain the value")
 	}
 
 	n := len(*slice) - 1
@@ -48,7 +53,7 @@ func RemoveStr(slice *[]string, value string) error {
 	}
 
 	for i := idx; i < n; i++ {
-		newSlice[i] = (*slice)[i + 1]
+		newSlice[i] = (*slice)[i+1]
 	}
 
 	*slice = make([]string, n)
@@ -61,15 +66,15 @@ func RemoveStr(slice *[]string, value string) error {
 
 func IndexStr(slice []string, value string) int {
 	for i, elem := range slice {
-		if (elem == value) {
+		if elem == value {
 			return i
 		}
 	}
 	return -1
 }
 
-func GetMapKeys(myMap map[string]chan bool) (keys []string) {
-	keys = make([]string, len(myMap));
+func GetMapKeys(myMap map[string]*minigamestypes.TicTacToeGameMeta) (keys []string) {
+	keys = make([]string, len(myMap))
 	i := 0
 	for key := range myMap {
 		keys[i] = key
@@ -79,12 +84,10 @@ func GetMapKeys(myMap map[string]chan bool) (keys []string) {
 }
 
 func Copy2DSliceStr(matrix [][]string) [][]string {
-	copy := make([][]string, len(matrix))
+	matrixCopy := make([][]string, len(matrix))
 	for i, row := range matrix {
-		copy[i] = make([]string, len(matrix[i]))
-		for j, item := range row {
-			copy[i][j] = item
-		}
+		matrixCopy[i] = make([]string, len(matrix[i]))
+		copy(matrixCopy[i], row)
 	}
-	return copy
+	return matrixCopy
 }

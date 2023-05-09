@@ -10,6 +10,7 @@ import (
 
 	"bot2/config"
 	"bot2/minigames"
+	"bot2/minigamestypes"
 	"bot2/utils"
 
 	"github.com/bwmarrin/discordgo"
@@ -126,10 +127,16 @@ func messageHandler(s *discordgo.Session, msg *discordgo.MessageCreate) {
 			}
 
 		} else if strings.Contains(msg.Content, BOT_PREFIX+"tictactoe") {
-			s.ChannelMessageSend(msg.ChannelID, "Welcome to TicTacToe! You are X and the computer is O")
-			reacted := make(chan bool)
-			minigames.TicTacToeGames[msg.Author.ID] = reacted
-			go minigames.PlayTicTacToe(s, msg.ChannelID, msg.Author, reacted)
+			gameThread, err := s.MessageThreadStart(msg.ChannelID, msg.ID, fmt.Sprintf("%s's TicTacToe Game", msg.Author.Username), 60)
+
+			if err != nil && err.Error() == "HTTP 400 Bad Request, {\"message\": \"Cannot execute action on this channel type\", \"code\": 50024}" {
+				s.ChannelMessageSend(msg.ChannelID, "Cannot start a game within a thread since a new thread is created for each game")
+			} else {
+				s.ChannelMessageSend(gameThread.ID, "Welcome to TicTacToe! You are X and the computer is O")
+				minigames.TicTacToeGames[msg.Author.ID] = &minigamestypes.TicTacToeGameMeta{ReactChannel: make(chan bool)}
+				go minigames.PlayTicTacToe(s, gameThread.ID, msg.Author)
+			}
+
 		} else {
 			s.ChannelMessageSendReply(msg.ChannelID, "not a valid command", msg.Reference())
 			// TODO: show help page
@@ -142,6 +149,7 @@ func messageHandler(s *discordgo.Session, msg *discordgo.MessageCreate) {
 
 func reactionHandler(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 	if utils.ContainsStr(utils.GetMapKeys(minigames.TicTacToeGames), r.Member.User.ID) &&
+		r.MessageID == minigames.TicTacToeGames[r.Member.User.ID].LastMsgID &&
 		utils.ContainsStr(minigames.GridPlaces, r.Emoji.MessageFormat()) {
 		minigames.HandlePlayerTurn(&r.Emoji, r.Member.User)
 	}

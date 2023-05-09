@@ -5,20 +5,22 @@ import (
 	"math"
 	"math/rand"
 
+	"bot2/minigamestypes"
 	"bot2/utils"
 
 	"github.com/bwmarrin/discordgo"
 )
 
 var (
-	TicTacToeGames = make(map[string]chan bool)
-	boards         = make(map[string][][]string)
+	TicTacToeGames = make(map[string]*minigamestypes.TicTacToeGameMeta)
 
 	session       *discordgo.Session = nil
-	channelID     string
-	GridPlaces    = make([]string, 9)
-	boldedSymbols = make(map[string]string)
-	randomPlays   = false
+	GridPlaces                       = []string{ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE}
+	boldedSymbols                    = map[string]string{
+		X: X_BOLD,
+		O: O_BOLD,
+	}
+	randomPlays = false
 )
 
 const COMPUTER string = "Computer"
@@ -41,30 +43,27 @@ const O string = "O"
 const X_BOLD string = "**X**"
 const O_BOLD string = "**O**"
 
-func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User, reacted chan bool) {
-	boards[user.ID] = [][]string{{EMPTY, EMPTY, EMPTY}, {EMPTY, EMPTY, EMPTY}, {EMPTY, EMPTY, EMPTY}}
+func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User) {
+	TicTacToeGames[user.ID].Board = [][]string{{EMPTY, EMPTY, EMPTY}, {EMPTY, EMPTY, EMPTY}, {EMPTY, EMPTY, EMPTY}}
+	TicTacToeGames[user.ID].ChID = chID
 	session = s
-	channelID = chID
-
-	GridPlaces = []string{ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE}
-	boldedSymbols[X] = X_BOLD
-	boldedSymbols[O] = O_BOLD
 
 	userName := user.Username
 
 	var winner string
 	turnCount := 0
 	for turnCount < 9 {
+		fmt.Printf("%s's game: turn #%d\n", userName, (turnCount + 1))
 		if turnCount%2 == 0 {
-			s.ChannelMessageSend(channelID, fmt.Sprintf("It's %s's turn\n"+getBoard(user.ID), userName))
-			playerTurn()
-			<-reacted
+			s.ChannelMessageSend(chID, fmt.Sprintf("It's %s's turn\n"+getBoard(user.ID), userName))
+			playerTurn(user.ID)
+			<-TicTacToeGames[user.ID].ReactChannel
 		} else {
-			computerTurn(user.ID)
+			computerTurn(user.ID, userName)
 		}
 
 		fmt.Println(getBoard(user.ID))
-		winner = checkWin(boards[user.ID])
+		winner = checkWin(TicTacToeGames[user.ID].Board)
 		if winner != NO_WIN {
 			fmt.Println("Winner is: " + winner)
 			break
@@ -73,22 +72,26 @@ func PlayTicTacToe(s *discordgo.Session, chID string, user *discordgo.User, reac
 	}
 
 	if winner == X {
-		session.ChannelMessageSend(channelID, fmt.Sprintf("Congratulations %s! You beat the computer 🥳", userName))
+		session.ChannelMessageSend(chID, fmt.Sprintf("Congratulations %s! You beat the computer 🥳", userName))
 	} else if winner == O {
-		session.ChannelMessageSend(channelID, "You lost 😢")
+		session.ChannelMessageSend(chID, "You lost 😢")
 	} else if winner == DRAW {
-		session.ChannelMessageSend(channelID, "No winner 😐")
+		session.ChannelMessageSend(chID, "No winner 😐")
 	}
 
-	session.ChannelMessageSend(channelID, getBoard(user.ID))
+	session.ChannelMessageSend(chID, getBoard(user.ID))
+
+	TicTacToeGames[user.ID] = nil
 }
 
-func playerTurn() {
-	msg, _ := session.ChannelMessageSend(channelID, "Choose a spot:\n"+
+func playerTurn(userID string) {
+	msg, _ := session.ChannelMessageSend(TicTacToeGames[userID].ChID, "Choose a spot:\n"+
 		"1 | 2 | 3\n---------\n4 | 5 | 6\n---------\n7 | 8 | 9\n")
 
+	TicTacToeGames[userID].LastMsgID = msg.ID
+
 	for _, emoji := range GridPlaces {
-		session.MessageReactionAdd(channelID, msg.Reference().MessageID, emoji)
+		session.MessageReactionAdd(TicTacToeGames[userID].ChID, msg.Reference().MessageID, emoji)
 	}
 }
 
@@ -98,18 +101,18 @@ func HandlePlayerTurn(emoji *discordgo.Emoji, user *discordgo.User) {
 	idx := utils.IndexStr(GridPlaces, emoji.MessageFormat())
 	rowIdx, colIdx := getBoardPosFromIdx(idx)
 
-	if boards[user.ID][rowIdx][colIdx] == EMPTY {
-		boards[user.ID][rowIdx][colIdx] = X
-		session.ChannelMessageSend(channelID, getBoard(user.ID))
-		TicTacToeGames[user.ID] <- true
+	if TicTacToeGames[user.ID].Board[rowIdx][colIdx] == EMPTY {
+		TicTacToeGames[user.ID].Board[rowIdx][colIdx] = X
+		session.ChannelMessageSend(TicTacToeGames[user.ID].ChID, getBoard(user.ID))
+		TicTacToeGames[user.ID].ReactChannel <- true
 	} else {
-		session.ChannelMessageSend(channelID, "This spot is already taken. React again to choose another one")
+		session.ChannelMessageSend(TicTacToeGames[user.ID].ChID, "This spot is already taken. React again to choose another one")
 	}
 
 }
 
-func computerTurn(userID string) {
-	availRows, availCols := findAvailSpaces(boards[userID])
+func computerTurn(userID string, userName string) {
+	availRows, availCols := findAvailSpaces(TicTacToeGames[userID].Board)
 
 	var (
 		scoreMultiplier int
@@ -123,12 +126,12 @@ func computerTurn(userID string) {
 		colIdx = availCols[availIdx]
 	} else {
 		scoreMultiplier = len(availRows)
-		_, rowIdx, colIdx = miniMaxMove(utils.Copy2DSliceStr(boards[userID]), O, scoreMultiplier)
+		_, rowIdx, colIdx = miniMaxMove(utils.Copy2DSliceStr(TicTacToeGames[userID].Board), O, scoreMultiplier)
 	}
 
 	if rowIdx > -1 && colIdx > -1 {
-		boards[userID][rowIdx][colIdx] = O
-		fmt.Println("Bot turn, bot chose " + GridPlaces[getIdxFromBoardPos(rowIdx, colIdx)])
+		TicTacToeGames[userID].Board[rowIdx][colIdx] = O
+		fmt.Printf("%s's game: bot chose %s\n", userName, GridPlaces[getIdxFromBoardPos(rowIdx, colIdx)])
 	}
 }
 
@@ -202,7 +205,7 @@ func getIdxFromBoardPos(row int, col int) int {
 
 func getBoard(userID string) (output string) {
 	output = ""
-	board := boards[userID]
+	board := TicTacToeGames[userID].Board
 	for i, row := range board {
 		for j, mark := range row {
 			output += mark
